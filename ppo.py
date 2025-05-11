@@ -31,37 +31,42 @@ class NeuralNetwork(nn.Module):
         return self.network(obs)
 
 class PPO:
-    def __init__(self):
-        
-        self.k_iterations = 10000
-        self.d_trajectory = 10
-        self.t_steps = 250
-        
-        self.gamma = 0.95
-        self.clip = 0.2
-        
-        self.update_runs = 5
-        
-        self.save_every = 10
-        
-        self.env = gym.make("Pendulum-v1")
-        
-        # Step 1 initialize the policy and critic network
+    def __init__(self, train:bool):
+
+        self.env_name = "MountainCarContinuous-v0" #"Pendulum-v1",""MountainCarContinuous-v0""
+        self.env = gym.make(self.env_name, render_mode=None if train else "human")
         self.obs_dim = self.env.observation_space.shape[0]
         self.act_dim = self.env.action_space.shape[0]
         hidden_nn = 64
-        lr = 1e-4
         self.actor = NeuralNetwork(self.obs_dim, self.act_dim, hidden_nn)
-        print(self.actor)
-        self.actor_optimizer = Adam(self.actor.parameters(), lr=lr)
-        self.actor_co_var = torch.full(size=(self.act_dim,), fill_value=0.5)
-        self.actor_co_mat = torch.diag(self.actor_co_var)
-        self.critic = NeuralNetwork(self.obs_dim, 1, hidden_nn)
-        self.critic_optimizer = Adam(self.critic.parameters(), lr=lr)
-        
-        
-        # Log setup to tensor board
-        self.log_write = SummaryWriter()
+        self.actor_dict_path = f"./ppo_actor_{self.env_name}.pth"
+
+        if train:
+            self.k_iterations = 10000
+            self.d_trajectory = 10
+            self.t_steps = 250
+            
+            self.gamma = 0.95
+            self.clip = 0.2
+            
+            self.update_runs = 5
+            
+            self.save_every = 10
+            
+            # Step 1 initialize the policy and critic network
+            lr = 1e-4
+            
+            print(self.actor)
+            self.actor_optimizer = Adam(self.actor.parameters(), lr=lr)
+            self.actor_co_var = torch.full(size=(self.act_dim,), fill_value=0.5)
+            self.actor_co_mat = torch.diag(self.actor_co_var)
+            self.critic = NeuralNetwork(self.obs_dim, 1, hidden_nn)
+            self.critic_optimizer = Adam(self.critic.parameters(), lr=lr)
+            self.critic_dict_path = f"./ppo_critic_{self.env_name}.pth"
+            
+            
+            # Log setup to tensor board
+            self.log_write = SummaryWriter()
     
     def action_sample(self, observation):
         action_mean = self.actor(observation)
@@ -150,9 +155,22 @@ class PPO:
             self.log_write.add_scalar("rewards", total_reward_iteration, k)
             
             if k % self.save_every == 0:
-                torch.save(self.actor.state_dict(), './ppo_actor.pth')
-                torch.save(self.critic.state_dict(), './ppo_critic.pth')
-            
+                torch.save(self.actor.state_dict(), self.actor_dict_path)
+                torch.save(self.critic.state_dict(), self.critic_dict_path)
+    
+    def run(self):
+        self.actor.load_state_dict(torch.load(self.actor_dict_path))
+        self.actor.eval()
+        done = False
+        observation, _ = self.env.reset()
+        total_reward = 0
+        while not done:
+            action = self.actor(observation).detach().numpy()
+            observation, reward, terminated, truncated, info = self.env.step(action)
+            total_reward += reward
+            done = terminated | truncated
+        print(f"evaluation total reward {total_reward}")
+    
     def __delete__(self):
         self.env.close()
         self.log_write.close()
@@ -165,24 +183,11 @@ def main():
     args = parser.parse_args()
 
     if args.train:
-        agent = PPO()
+        agent = PPO(True)
         agent.learn()
     else:
-        env = gym.make("Pendulum-v1", render_mode="human")
-        act_dim = env.action_space.shape[0]
-        ob_dim = env.observation_space.shape[0]
-        agent = NeuralNetwork(ob_dim, act_dim)
-        agent.load_state_dict(torch.load("./ppo_actor.pth"))
-        agent.eval()
-        done = False
-        observation, _ = env.reset()
-        total_reward = 0
-        while not done:
-            action = agent(observation).detach().numpy()
-            observation, reward, terminated, truncated, info = env.step(action)
-            total_reward += reward
-            done = terminated | truncated
-        print(f"evaluation total reward {total_reward}")
+        agent = PPO(False)
+        agent.run()
 
 if __name__ == "__main__":
     main()
