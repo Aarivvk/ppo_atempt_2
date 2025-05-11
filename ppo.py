@@ -35,8 +35,11 @@ class NeuralNetwork(nn.Module):
 class PPO:
     def __init__(self, train:bool, env_name:str):
         print(env_name)
-        self.env_name = env_name #"Pendulum-v1","MountainCarContinuous-v0"
-        self.env = gym.make(self.env_name, render_mode=None if train else "human")
+        self.env_name = env_name #"Pendulum-v1","MountainCarContinuous-v0", LunarLander-v3
+        if self.env_name == "LunarLander-v3":
+            self.env = gym.make(self.env_name, continuous=True, render_mode=None if train else "human")
+        else:
+            self.env = gym.make(self.env_name, render_mode=None if train else "human")
         self.obs_dim = self.env.observation_space.shape[0]
         self.act_dim = self.env.action_space.shape[0]
         hidden_nn = 64
@@ -55,7 +58,7 @@ class PPO:
             self.t_steps = 1250
             
             # For MountainCarContinuous-v0 0.999 and for Pendulum-v1 0.95
-            if self.env_name == "MountainCarContinuous-v0":
+            if self.env_name in ["LunarLander-v3", "MountainCarContinuous-v0"]:
                 self.gamma = 0.999
             else:
                 self.gamma = 0.95
