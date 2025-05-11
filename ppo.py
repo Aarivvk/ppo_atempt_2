@@ -1,5 +1,6 @@
 # This is a simple PPO implementation, trying to implement basic algorithm from the PPO paper
 
+from collections import deque
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -34,7 +35,7 @@ class NeuralNetwork(nn.Module):
 class PPO:
     def __init__(self, train:bool):
 
-        self.env_name = "Pendulum-v1" #"Pendulum-v1",""MountainCarContinuous-v0""
+        self.env_name = "MountainCarContinuous-v0" #"Pendulum-v1","MountainCarContinuous-v0"
         self.env = gym.make(self.env_name, render_mode=None if train else "human")
         self.obs_dim = self.env.observation_space.shape[0]
         self.act_dim = self.env.action_space.shape[0]
@@ -49,16 +50,23 @@ class PPO:
         torch.manual_seed(self.seed)
 
         if train:
-            self.k_iterations = 3500
+            self.k_iterations = 10000
             self.d_trajectory = 10
-            self.t_steps = 250
+            self.t_steps = 1250
             
-            self.gamma = 0.95
+            # For MountainCarContinuous-v0 0.999 and for Pendulum-v1 0.95
+            self.gamma = 0.999
             self.clip = 0.2
             
             self.update_runs = 5
             
-            self.best_rewards = -float('inf')
+            self.reward_window = deque(maxlen=50)
+            self.rewards_moving_avg = -float("inf")
+            self.prev_moving_avg = 0
+            self.stable_count = 0
+            self.saturation_threshold = 1.0  # Small change allowed between moving averages
+            self.saturation_patience = 100   # How many iterations of "stable" performance before stopping
+
             
             # Step 1 initialize the policy and critic network
             lr = 1e-4
@@ -155,16 +163,31 @@ class PPO:
                 critic_loss.backward()
                 self.critic_optimizer.step()
             
-            print(f"{k}/{self.k_iterations} reward {total_reward_iteration} act_loss {actor_loss} crtc_loss {critic_loss}")
+            self.reward_window.append(total_reward_iteration)
+            moving_avg = np.mean(self.reward_window)
             
-            self.log_write.add_scalar("loss/actor", actor_loss, k)
-            self.log_write.add_scalar("loss/critic", critic_loss, k)
-            self.log_write.add_scalar("rewards", total_reward_iteration, k)
-            
-            if total_reward_iteration > self.best_rewards == 0:
+            if moving_avg > self.rewards_moving_avg:
                 torch.save(self.actor.state_dict(), self.actor_dict_path)
                 torch.save(self.critic.state_dict(), self.critic_dict_path)
-                self.best_rewards = total_reward_iteration
+                self.rewards_moving_avg = moving_avg
+                save = f" --> Saved [New Moving Avg: {moving_avg:.2f}]"
+            else:
+                save =""
+            # Detect saturation
+            if abs(moving_avg - self.prev_moving_avg) < self.saturation_threshold:
+                self.stable_count += 1
+            else:
+                self.stable_count = 0  # reset if there's meaningful change
+            self.prev_moving_avg = moving_avg
+            print(f"{k}/{self.k_iterations} reward {total_reward_iteration} critic_loss {critic_loss} Stable count {self.stable_count}{save}")
+            self.log_write.add_scalar("log/critic loss", critic_loss, k)
+            self.log_write.add_scalar("log/rewards", total_reward_iteration, k)
+            self.log_write.add_scalar("log/mv average", moving_avg, k)
+            
+            # Stop training if saturated
+            if self.stable_count >= self.saturation_patience:
+                print(f"\nTraining stopped: reward moving average stable for {self.saturation_patience} iterations.")
+                break
     
     def run(self):
         self.actor.load_state_dict(torch.load(self.actor_dict_path))
