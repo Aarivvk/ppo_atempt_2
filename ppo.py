@@ -58,7 +58,7 @@ class PPO:
             
             self.update_runs = 5
             
-            self.save_every = 10
+            self.best_rewards = -float('inf')
             
             # Step 1 initialize the policy and critic network
             lr = 1e-4
@@ -73,7 +73,7 @@ class PPO:
             
             
             # Log setup to tensor board
-            self.log_write = SummaryWriter(filename_suffix=self.env_name)
+            self.log_write = SummaryWriter(log_dir="runs", comment=self.env_name)
     
     def action_sample(self, observation):
         action_mean = self.actor(observation)
@@ -161,15 +161,16 @@ class PPO:
             self.log_write.add_scalar("loss/critic", critic_loss, k)
             self.log_write.add_scalar("rewards", total_reward_iteration, k)
             
-            if k % self.save_every == 0:
+            if total_reward_iteration > self.best_rewards == 0:
                 torch.save(self.actor.state_dict(), self.actor_dict_path)
                 torch.save(self.critic.state_dict(), self.critic_dict_path)
+                self.best_rewards = total_reward_iteration
     
     def run(self):
         self.actor.load_state_dict(torch.load(self.actor_dict_path))
         self.actor.eval()
         done = False
-        observation, _ = self.env.reset()
+        observation, _ = self.env.reset(seed=self.seed)
         total_reward = 0
         while not done:
             action = self.actor(observation).detach().numpy()
