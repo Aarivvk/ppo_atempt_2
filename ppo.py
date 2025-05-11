@@ -11,6 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 import gymnasium as gym
 
 import argparse
+import random
 
 
 class NeuralNetwork(nn.Module):
@@ -33,16 +34,22 @@ class NeuralNetwork(nn.Module):
 class PPO:
     def __init__(self, train:bool):
 
-        self.env_name = "MountainCarContinuous-v0" #"Pendulum-v1",""MountainCarContinuous-v0""
+        self.env_name = "Pendulum-v1" #"Pendulum-v1",""MountainCarContinuous-v0""
         self.env = gym.make(self.env_name, render_mode=None if train else "human")
         self.obs_dim = self.env.observation_space.shape[0]
         self.act_dim = self.env.action_space.shape[0]
         hidden_nn = 64
         self.actor = NeuralNetwork(self.obs_dim, self.act_dim, hidden_nn)
         self.actor_dict_path = f"./ppo_actor_{self.env_name}.pth"
+        
+        self.seed = 144
+        self.env.action_space.seed(self.seed)
+        random.seed(self.seed)
+        np.random.seed(self.seed)
+        torch.manual_seed(self.seed)
 
         if train:
-            self.k_iterations = 10000
+            self.k_iterations = 3500
             self.d_trajectory = 10
             self.t_steps = 250
             
@@ -66,7 +73,7 @@ class PPO:
             
             
             # Log setup to tensor board
-            self.log_write = SummaryWriter()
+            self.log_write = SummaryWriter(filename_suffix=self.env_name)
     
     def action_sample(self, observation):
         action_mean = self.actor(observation)
@@ -89,7 +96,7 @@ class PPO:
             tj_rewards = []
             # Step 3 Collect set of trajectories
             for d in range(self.d_trajectory):
-                observation, _ = self.env.reset()
+                observation, _ = self.env.reset(seed=self.seed)
                 t_rewards =  []
                 for t in range(self.t_steps):
                     tj_obs.append(observation)
@@ -143,7 +150,7 @@ class PPO:
                 
                 # Step 7 Fit value function / critic by regression on mean-squared error
                 tj_critic_values = self.critic(tj_obs)
-                critic_loss = F.mse_loss(tj_critic_values, tj_rtg)
+                critic_loss = F.mse_loss(tj_critic_values.squeeze(), tj_rtg)
                 self.critic_optimizer.zero_grad()
                 critic_loss.backward()
                 self.critic_optimizer.step()
