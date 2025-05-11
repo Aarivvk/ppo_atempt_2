@@ -36,7 +36,7 @@ class PPO:
     def __init__(self, train:bool, env_name:str):
         print(env_name)
         self.env_name = env_name #"Pendulum-v1","MountainCarContinuous-v0", LunarLander-v3
-        if self.env_name == "LunarLander-v3":
+        if self.env_name in ["LunarLander-v3"]:
             self.env = gym.make(self.env_name, continuous=True, render_mode=None if train else "human")
         else:
             self.env = gym.make(self.env_name, render_mode=None if train else "human")
