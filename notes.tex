@@ -1,0 +1,55 @@
+# https://arxiv.org/pdf/1707.06347
+
+# Why to use log probability
+# log (p1 * p2 * p3) = log(p1) + log(p2) + log(p3)
+
+# Algorithm 1 PPO, Actor-Critic Style
+# for iteration=1,2,... do
+# for actor=1,2,...,N do
+# Run policy πθold in environment for T timesteps
+# Compute advantage estimates
+# A1,..., A^T
+# end for
+# Optimize surrogate L wrt θ, with K epochs and minibatch size M ≤NT
+# θold ←θ
+# end for
+
+# https://spinningup.openai.com/en/latest/_images/math/e62a8971472597f4b014c2da064f636ffe365ba3.svg
+
+
+# PPO-Clip Pseudocode
+# Initialize policy parameters θ, value function parameters φ
+# Initialize clipping parameter ε, learning rates α_θ, α_φ
+
+# for iteration = 1, 2, ... do
+#     # Collection Phase
+#     for actor = 1, 2, ..., N do
+#         Run policy π_θ_old in environment for T timesteps
+#         Collect trajectories {s_t, a_t, r_t}
+#         Compute advantage estimates Â_t using GAE (λ) with V_φ
+#     end for
+    
+#     # Optimization Phase
+#     for epoch = 1, 2, ..., K do
+#         Shuffle and batch the collected data
+        
+#         for minibatch in batches do
+#             # Policy Update
+#             Compute ratio r_t(θ) = π_θ(a_t|s_t) / π_θ_old(a_t|s_t)
+#             Compute surrogate objectives:
+#                 L_CLIP(θ) = E_t[min(r_t(θ)Â_t, clip(r_t(θ), 1-ε, 1+ε)Â_t)]
+#                 L_S(θ) = entropy bonus (optional)
+#                 Total loss = -L_CLIP(θ) + c1*L_VF(φ) - c2*L_S(θ)
+            
+#             # Value Function Update
+#             Compute value function loss:
+#                 L_VF(φ) = (V_φ(s_t) - V_target)^2
+            
+#             # Parameter Updates
+#             θ ← θ + α_θ * ∇_θ(Total loss)  # Adam usually used
+#             φ ← φ + α_φ * ∇_φ(L_VF)         # Adam usually used
+#         end for
+#     end for
+    
+#     θ_old ← θ  # Update old policy
+# end for
