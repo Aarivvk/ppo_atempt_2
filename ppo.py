@@ -33,9 +33,9 @@ class NeuralNetwork(nn.Module):
         return self.network(obs)
 
 class PPO:
-    def __init__(self, train:bool):
-
-        self.env_name = "MountainCarContinuous-v0" #"Pendulum-v1","MountainCarContinuous-v0"
+    def __init__(self, train:bool, env_name:str):
+        print(env_name)
+        self.env_name = env_name #"Pendulum-v1","MountainCarContinuous-v0"
         self.env = gym.make(self.env_name, render_mode=None if train else "human")
         self.obs_dim = self.env.observation_space.shape[0]
         self.act_dim = self.env.action_space.shape[0]
@@ -55,7 +55,10 @@ class PPO:
             self.t_steps = 1250
             
             # For MountainCarContinuous-v0 0.999 and for Pendulum-v1 0.95
-            self.gamma = 0.999
+            if self.env_name == "MountainCarContinuous-v0":
+                self.gamma = 0.999
+            else:
+                self.gamma = 0.95
             self.clip = 0.2
             
             self.update_runs = 5
@@ -209,15 +212,16 @@ class PPO:
 
 def main():
     parser = argparse.ArgumentParser(description="Train or evaluate the PPO agent.")
+    parser.add_argument('--env', type=str, default="Pendulum-v1", help="Gym environment name")
     parser.add_argument("--train", action="store_true", help="Evaluate the agent")
     parser.add_argument("--resume", action="store_true", help="Start training from the last checkpoint")
     args = parser.parse_args()
 
     if args.train:
-        agent = PPO(True)
+        agent = PPO(True, args.env)
         agent.learn()
     else:
-        agent = PPO(False)
+        agent = PPO(False, args.env)
         agent.run()
 
 if __name__ == "__main__":
